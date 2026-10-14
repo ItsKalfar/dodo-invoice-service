@@ -1,0 +1,191 @@
+# Clickable demo of the API. Start the stack first: `make up` (or `docker compose up --build`).
+# VS Code: install the "REST Client" extension (humao.rest-client), then click "Send Request"
+# above each block, top to bottom.
+# Later requests reuse ids from earlier responses, so run them in order.
+# Concurrency and the crash-mid-payment case can't be expressed here: run `make e2e` for those.
+
+@base = http://localhost:8080
+@key = Bearer sk_test_demo123
+
+### Health (no auth)
+GET {{base}}/health
+
+### Register the demo webhook sink (watch deliveries with `make logs`)
+POST {{base}}/webhook_endpoints
+Authorization: {{key}}
+Content-Type: application/json
+
+{"url": "http://psp:8081/webhook-sink"}
+
+### Wrong API key -> 401
+GET {{base}}/customers
+Authorization: Bearer nope
+
+### Create a customer
+# @name customer
+POST {{base}}/customers
+Authorization: {{key}}
+Content-Type: application/json
+
+{"name": "Ada Lovelace", "email": "ada@example.com"}
+
+### Client-sent total is rejected -> 400
+POST {{base}}/invoices
+Authorization: {{key}}
+Content-Type: application/json
+
+{
+  "customer_id": "{{customer.response.body.$.id}}",
+  "due_date": "2026-11-30",
+  "total_cents": 1,
+  "line_items": [{"description": "Consulting", "quantity": 2, "unit_amount_cents": 15000}]
+}
+
+### Create an invoice: server computes total_cents = 30000, status = draft
+# @name invoice
+POST {{base}}/invoices
+Authorization: {{key}}
+Content-Type: application/json
+
+{
+  "customer_id": "{{customer.response.body.$.id}}",
+  "due_date": "2026-11-30",
+  "line_items": [{"description": "Consulting", "quantity": 2, "unit_amount_cents": 15000}]
+}
+
+### Pay a draft -> 409 invalid_state_transition
+POST {{base}}/invoices/{{invoice.response.body.$.id}}/pay
+Authorization: {{key}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{"card_token": "tok_success"}
+
+### Finalize: draft -> open
+POST {{base}}/invoices/{{invoice.response.body.$.id}}/finalize
+Authorization: {{key}}
+
+### Finalize again -> 409 invalid_state_transition
+POST {{base}}/invoices/{{invoice.response.body.$.id}}/finalize
+Authorization: {{key}}
+
+### Pay with a declined card -> 402, invoice stays open
+POST {{base}}/invoices/{{invoice.response.body.$.id}}/pay
+Authorization: {{key}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{"card_token": "tok_card_declined"}
+
+### Pay with insufficient funds -> 402
+POST {{base}}/invoices/{{invoice.response.body.$.id}}/pay
+Authorization: {{key}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{"card_token": "tok_insufficient_funds"}
+
+### Pay successfully -> 200, invoice paid (fixed key so the next two requests can reuse it)
+POST {{base}}/invoices/{{invoice.response.body.$.id}}/pay
+Authorization: {{key}}
+Content-Type: application/json
+Idempotency-Key: demo-pay-{{invoice.response.body.$.id}}
+
+{"card_token": "tok_success"}
+
+### Same key, same body -> identical saved response, no second PSP call
+POST {{base}}/invoices/{{invoice.response.body.$.id}}/pay
+Authorization: {{key}}
+Content-Type: application/json
+Idempotency-Key: demo-pay-{{invoice.response.body.$.id}}
+
+{"card_token": "tok_success"}
+
+### Same key, different body -> 422 idempotency_key_reused
+POST {{base}}/invoices/{{invoice.response.body.$.id}}/pay
+Authorization: {{key}}
+Content-Type: application/json
+Idempotency-Key: demo-pay-{{invoice.response.body.$.id}}
+
+{"card_token": "tok_card_declined"}
+
+### New key on a paid invoice -> 409 invalid_state_transition
+POST {{base}}/invoices/{{invoice.response.body.$.id}}/pay
+Authorization: {{key}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{"card_token": "tok_success"}
+
+### Void a paid invoice -> 409 (paid is terminal)
+POST {{base}}/invoices/{{invoice.response.body.$.id}}/void
+Authorization: {{key}}
+
+### ---- PSP timeout: second invoice ----
+# @name slow
+POST {{base}}/invoices
+Authorization: {{key}}
+Content-Type: application/json
+
+{
+  "customer_id": "{{customer.response.body.$.id}}",
+  "due_date": "2026-11-30",
+  "line_items": [{"description": "Slow card", "quantity": 1, "unit_amount_cents": 999}]
+}
+
+### Finalize the slow invoice
+POST {{base}}/invoices/{{slow.response.body.$.id}}/finalize
+Authorization: {{key}}
+
+### tok_timeout -> 202 with a pending attempt after ~3 s (doesn't wait for the PSP's 30 s)
+POST {{base}}/invoices/{{slow.response.body.$.id}}/pay
+Authorization: {{key}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{"card_token": "tok_timeout"}
+
+### While pending: void -> 409 payment_in_progress
+POST {{base}}/invoices/{{slow.response.body.$.id}}/void
+Authorization: {{key}}
+
+### Check status: "open" now, "paid" once the sweeper settles it (~30 s+)
+GET {{base}}/invoices/{{slow.response.body.$.id}}
+Authorization: {{key}}
+
+### ---- PSP network error: third invoice ----
+# @name flaky
+POST {{base}}/invoices
+Authorization: {{key}}
+Content-Type: application/json
+
+{
+  "customer_id": "{{customer.response.body.$.id}}",
+  "due_date": "2026-11-30",
+  "line_items": [{"description": "Flaky network", "quantity": 1, "unit_amount_cents": 500}]
+}
+
+### Finalize the flaky invoice
+POST {{base}}/invoices/{{flaky.response.body.$.id}}/finalize
+Authorization: {{key}}
+
+### tok_network_error -> 202 pending (PSP charged, then dropped the connection)
+POST {{base}}/invoices/{{flaky.response.body.$.id}}/pay
+Authorization: {{key}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{"card_token": "tok_network_error"}
+
+### Check status: settles to "paid" via the sweeper, never double-charged
+GET {{base}}/invoices/{{flaky.response.body.$.id}}
+Authorization: {{key}}
+
+### ---- Listing ----
+### Open invoices
+GET {{base}}/invoices?status=open
+Authorization: {{key}}
+
+### All customers
+GET {{base}}/customers
+Authorization: {{key}}

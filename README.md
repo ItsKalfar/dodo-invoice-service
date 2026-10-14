@@ -33,6 +33,10 @@ At startup the app creates a demo business with the API key **`sk_test_demo123`*
 
 ## Try it
 
+The quickest way: open [`requests.http`](requests.http) in VS Code with the REST Client
+extension and click **Send Request** on each block, top to bottom. It covers every step below
+plus the timeout and network-error cases. Or use curl:
+
 ```sh
 export KEY="Authorization: Bearer sk_test_demo123"
 export JSON="Content-Type: application/json"
