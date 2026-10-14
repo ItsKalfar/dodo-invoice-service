@@ -6,13 +6,14 @@
   - **Design proposals:** before each step, Claude explained the options and recommended one;
     I made the call.
   - **Code:** handlers, schema, mock PSP, workers, and the integration tests.
-    each with the alternative it rejected. I reviewed it to keep, change or reject each one.
+    I reviewed each piece and kept, changed or rejected it.
   - **Docs:** first drafts of the README, `API.md` and `DESIGN.md` sections, which I then rewrote.
 - **"Ponytail" plugin for Claude Code:** a prompt that pushes Claude toward the smallest working
   code and makes it mark deliberate shortcuts with `ponytail:` comments. Used to keep scope
   small, since the brief rewards restraint.
 
 **How I checked the output:**
+
 - I ran the full test suite against real Postgres.
 - I exercised every README curl against `docker compose up`.
 - I read the payment path (`src/payments.rs`) line by line, since it's where a mistake costs money.
@@ -48,7 +49,8 @@ and `updated_at`, so you can't tell when a bill was paid. I wanted that called o
 as something a real system needs. Claude took it as a request to build the columns and started
 planning them. I had to clarify that they're out of scope and belong in "What You Cut".
 
-Also:
+Two smaller ones:
+
 **Gave up a sound idea too easily:** in decision 2 above, it dropped a correct suggestion
 under light pushback instead of explaining the distinction. I had to work out the reasoning
 myself before keeping it.

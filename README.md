@@ -3,7 +3,7 @@
 A small invoice and payment API in Rust (axum + sqlx + Postgres). It talks to a mock payment
 processor (PSP) over HTTP and sends signed webhooks.
 
-- Design and trade-offs: [`DESIGN.md`](DESIGN.md)
+- Design and trade-offs: [`DESIGN.md`](DESIGN.md) (diagrams: [`ARCHITECTURE.md`](ARCHITECTURE.md))
 - API reference: [`API.md`](API.md)
 - How AI was used: [`AI_USAGE.md`](AI_USAGE.md)
 
