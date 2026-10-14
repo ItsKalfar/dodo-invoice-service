@@ -19,6 +19,9 @@ docker compose up --build
 
 This starts three containers. No manual steps are needed: migrations run on startup.
 
+Shortcuts (they use `docker`, or `podman` if Docker isn't installed): `make up`, `make down`
+(also wipes the database), `make logs` (webhooks arriving), `make test`, `make e2e`.
+
 | Service | Port | What it is |
 |---|---|---|
 | `app` | 8080 | The API, plus two background workers (webhook delivery, pending-payment sweeper) |
