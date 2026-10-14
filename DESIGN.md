@@ -254,7 +254,7 @@ Code: `ensure_business_with_key` in `src/auth.rs`, called from `src/main.rs`.
   delete/disable endpoint, no secret rotation. Reconciliation via `GET /invoices` covers missed
   events. The `disabled_at` column already exists, so disabling is a small addition later.
 - **A separate webhook receiver for the demo.** The mock PSP has a `POST /webhook-sink` route
-  that just logs what it receives (`podman compose logs psp`). Both are "the fake outside world", so a
+  that just logs what it receives (`docker compose logs psp`). Both are "the fake outside world", so a
   third container would add nothing.
 
 ## 7. Production Readiness Gap
