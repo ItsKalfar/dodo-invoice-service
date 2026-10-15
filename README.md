@@ -9,7 +9,7 @@ processor (PSP) over HTTP and sends signed webhooks.
 
 ## Demo Video
 
-_Link coming soon._
+[Watch the walkthrough on Loom](https://www.loom.com/share/2859fb9f5d7a473da194ebfc12d21ec0)
 
 ## Run it
 
